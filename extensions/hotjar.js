@@ -1,17 +1,36 @@
-// HotJar Constants
-const hotJarID = ""; // Format: 0000000 (HotJar tracking)
+/**
+ * HotJar Extension for Delayed.js
+ *
+ * Usage: Add this to your delayed.js config and call setupHotJar() from initDelayedScripts()
+ *
+ * Add to config:
+ *   hotJarID: "0000000"   // Format: '0000000' (HotJar tracking ID)
+ *
+ * Add to initDelayedScripts():
+ *   setupHotJar();
+ */
 
-// HotJar Conditional Statement
-if (hotJarID) setupHotJar(window, document, 'https://static.hotjar.com/c/hotjar-', '.js?sv=');
+/**
+ * Initialize HotJar analytics
+ * Requires: config.hotJarID to be set
+ */
+function setupHotJar() {
+  if (!config.hotJarID) return;
 
-// Load HotJar script late
-function setupHotJar(h, o, t, j, a, r) {
-  console.log('Setup HotJar');
+  log('Setting up HotJar: ' + config.hotJarID);
 
-  h.hj = h.hj || function () { (h.hj.q = h.hj.q || []).push(arguments) };
-  h._hjSettings = { hjid: hotJarID, hjsv: 6 };
-  a = o.getElementsByTagName('head')[0];
-  r = o.createElement('script'); r.async = 1;
-  r.src = t + h._hjSettings.hjid + j + h._hjSettings.hjsv;
-  a.appendChild(r);
+  // Initialize HotJar queue
+  window.hj = window.hj || function() {
+    (window.hj.q = window.hj.q || []).push(arguments);
+  };
+
+  window._hjSettings = {
+    hjid: config.hotJarID,
+    hjsv: 6
+  };
+
+  loadScript({
+    src: 'https://static.hotjar.com/c/hotjar-' + config.hotJarID + '.js?sv=6',
+    appendTo: 'head'
+  });
 }

@@ -1,368 +1,588 @@
 /**
- * Loads scripts/features in a deferred manner
- * @version 1.8.0
+ * Loads scripts/features in a deferred manner for WordPress sites
+ * @version 2.0.0
+ *
+ * Optimizations:
+ * - IIFE pattern to avoid global scope pollution
+ * - Event listeners removed after first trigger
+ * - Timeout cleared on user interaction
+ * - Reusable script loader with error handling
+ * - Configurable debug mode
+ * - Better code readability
  */
 
-// Global variable to prevent delayedScripts from running more than once
-let delayedScriptsInitialized = false;
+(function() {
+  'use strict';
 
-/**
- * Constant variables that are referenced within their respective functions
- * Enter IDs for services you plan to use.
- */
+  // ============================================
+  // CONFIGURATION
+  // ============================================
 
-// DATA AND ANALYTICS SERVICES
-const googleAnalyticsV4ID = ""; // Format: 'G-0000000000 (Google Analytics 4 – gtag.js)
-const googleTagManagerID = ""; // Format: GTM-0000000 (Google Tag Manager)
-const googleAdsID = ""; // Format AW-000000000 (Google Ads)
-const googleCallMetricsID = ""; // Format AW-000000000/00000000000000000000 (Google Call Metrics ID, associated with Google Ads)
-const googleCallMetricsPhone1 = ""; // Format 1-000-000-0000 (Google Call Metrics Phone Number)
-const googleCallMetricsPhone2 = "";// Format 1-000-000-0000 (Google Call Metrics Phone Number)
-const googleLeadConversionID = ""; // Format AW-000000000/00000000000000000000 (Google Lead Conversion ID, associated with Google Ads)
-const googleLeadConversionValue = 1.0; // Decimal value, 1.0 set by default. Update as needed
-const googleLeadConversioncurrency = 'USD'; // Currency, USD set by default. Update as needed
-const facebookPixelID = ""; // Format: 000000000000000 (Facebook pixel tracking)
-const bingConversionID = ""; // Format: 000000000 (Bing conversion tracking)
+  var config = {
+    // Debug mode - set to false for production
+    debug: false,
 
-// CONDITIONAL SERVICES
-const useCickCease = false; // True or false to enable/disable (ClickCease)
-const useGoogleTranslate = false; // True or false to enable/disable (Google Translate)
+    // DATA AND ANALYTICS SERVICES
+    googleAnalyticsV4ID: "",      // Format: 'G-0000000000' (Google Analytics 4 – gtag.js)
+    googleTagManagerID: "",       // Format: 'GTM-0000000' (Google Tag Manager)
+    googleAdsID: "",              // Format: 'AW-000000000' (Google Ads)
+    googleCallMetricsID: "",      // Format: 'AW-000000000/00000000000000000000'
+    googleCallMetricsPhone1: "",  // Format: '1-000-000-0000'
+    googleCallMetricsPhone2: "",  // Format: '1-000-000-0000'
+    googleLeadConversionID: "",   // Format: 'AW-000000000/00000000000000000000'
+    googleLeadConversionValue: 1.0,
+    googleLeadConversionCurrency: 'USD',
+    facebookPixelID: "",          // Format: '000000000000000'
+    bingConversionID: "",         // Format: '000000000'
 
-// CHAT SERVICES
-const ngageChatID = ""; // Format: 0-000-000-000-000-000-000-000 (Ngage live chat)
-const oClarkChatID = ""; // Format: 0000-000-00-0000 (Olark live chat)
-const apexLiveChatID = ""; // Format: String, as in "companyname" (Apex live chat)
-const intakerChatID = ""; // Format: sitename (Intaker live chat)
-const juvoLeadsChatID = ""; // Format: 0000000000 (Juvo Leads live Chat)  
-const hubspotChatID = ""; // Format: 00000000 (Hubspot live chat)
+    // CONDITIONAL SERVICES
+    useClickCease: false,
+    useGoogleTranslate: false,
 
-// JavaScript code to execute after the DOM is ready
-document.addEventListener("DOMContentLoaded", function (event) {
-  // Load script(s) after the user scrolls, moves the mouse, or touches the screen
-  document.addEventListener('scroll', delayedScripts);
-  document.addEventListener('mousemove', delayedScripts);
-  document.addEventListener('touchstart', delayedScripts);
+    // CHAT SERVICES
+    ngageChatID: "",              // Format: '0-000-000-000-000-000-000-000'
+    olarkChatID: "",              // Format: '0000-000-00-0000'
+    apexLiveChatID: "",           // Format: 'companyname'
+    intakerChatID: "",            // Format: 'sitename'
+    juvoLeadsChatID: "",          // Format: '0000000000'
+    hubspotChatID: "",            // Format: '00000000'
 
-  setTimeout(function () {
-    delayedScripts();
-  }, 5000);
-});
+    // TIMING
+    delayTimeout: 5000            // Milliseconds before auto-loading scripts
+  };
 
-// Run scripts when user interacts with the page
-function delayedScripts(event) {
-  // Trigger this function only once
-  if (delayedScriptsInitialized) return;
+  // ============================================
+  // INTERNAL STATE
+  // ============================================
 
-  setupGoogleAnalytics();
+  var initialized = false;
+  var delayedTimeout = null;
+  var eventListeners = [];
 
-  // Execute functions based on the IDs above
-  if (googleTagManagerID) setupGoogleTagManager(window, document, 'script', 'dataLayer', googleTagManagerID);
-  if (facebookPixelID) setupPixel(window, document, 'script', 'https://connect.facebook.net/en_US/fbevents.js');
-  if (bingConversionID) setupBingConversion(window, document, "script", "//bat.bing.com/bat.js", "uetq");
+  // ============================================
+  // UTILITY FUNCTIONS
+  // ============================================
 
-  if (ngageChatID) setupNgageChat("https://messenger.ngageics.com/ilnksrvr.aspx?websiteid=", document, "script", ngageChatID);
-  if (oClarkChatID) setupOlarkChat(window, document, "static.olark.com/jsclient/loader.js");
-  if (apexLiveChatID) setupApexChat();
-  if (intakerChatID) setupIntaker(window, document, 'script', 'Intaker', intakerChatID);
-  if (hubspotChatID) setupHubspotChat();
-  if (juvoLeadsChatID) setupJuvoLeads()
-
-  if (useCickCease) setupClickease();
-  if (useGoogleTranslate) setupGoogleTranslate();
-
-  // Set variable to true to prevent delayedScripts from rerunning
-  delayedScriptsInitialized = true;
-}
-
-// Initializes Google Analytics
-function setupGoogleAnalytics() {
-  // Return if googleAnalyticsV4ID is not set
-  if (!googleAnalyticsV4ID) {
-    console.log('Analytics variable is not set!');
-    return;
+  /**
+   * Conditional logging based on debug mode
+   */
+  function log(message) {
+    if (config.debug && window.console && console.log) {
+      console.log('[Delayed.js] ' + message);
+    }
   }
 
-  console.log('Setup analytics with ID ' + googleAnalyticsV4ID);
+  /**
+   * Log warnings (always shown)
+   */
+  function warn(message) {
+    if (window.console && console.warn) {
+      console.warn('[Delayed.js] ' + message);
+    }
+  }
 
-  // Create the script
-  const script = document.createElement('script');
-  script.type = 'text/javascript';
-  script.onload = () => {
+  /**
+   * Reusable script loader with error handling
+   * @param {Object} options - Script loading options
+   * @param {string} options.src - Script source URL
+   * @param {boolean} [options.async=true] - Load asynchronously
+   * @param {boolean} [options.defer=false] - Defer loading
+   * @param {Function} [options.onload] - Callback on successful load
+   * @param {Function} [options.onerror] - Callback on error
+   * @param {string} [options.appendTo='body'] - Where to append ('head', 'body', 'footer')
+   * @param {Object} [options.attributes] - Additional attributes to set
+   * @returns {HTMLScriptElement} The created script element
+   */
+  function loadScript(options) {
+    var script = document.createElement('script');
+    script.src = options.src;
+    script.async = options.async !== false;
+
+    if (options.defer) {
+      script.defer = true;
+    }
+
+    if (options.onload) {
+      script.onload = options.onload;
+    }
+
+    script.onerror = function() {
+      warn('Failed to load script: ' + options.src);
+      if (options.onerror) {
+        options.onerror();
+      }
+    };
+
+    // Set additional attributes
+    if (options.attributes) {
+      for (var key in options.attributes) {
+        if (options.attributes.hasOwnProperty(key)) {
+          script.setAttribute(key, options.attributes[key]);
+        }
+      }
+    }
+
+    // Determine parent element with fallbacks
+    var parent = document.body;
+    if (options.appendTo === 'head') {
+      parent = document.head || document.getElementsByTagName('head')[0] || document.body;
+    } else if (options.appendTo === 'footer') {
+      parent = document.getElementsByTagName('footer')[0] || document.body;
+    }
+
+    parent.appendChild(script);
+    return script;
+  }
+
+  /**
+   * Create a noscript fallback element
+   * @param {string} innerHTML - Content for noscript tag
+   * @param {string} [appendTo='body'] - Where to append
+   */
+  function createNoscript(innerHTML, appendTo) {
+    var noscript = document.createElement('noscript');
+    noscript.innerHTML = innerHTML;
+
+    var parent = document.body;
+    if (appendTo === 'head') {
+      parent = document.head || document.getElementsByTagName('head')[0] || document.body;
+    }
+
+    parent.appendChild(noscript);
+    return noscript;
+  }
+
+  /**
+   * Remove all registered event listeners
+   */
+  function removeEventListeners() {
+    for (var i = 0; i < eventListeners.length; i++) {
+      var listener = eventListeners[i];
+      document.removeEventListener(listener.event, listener.handler);
+    }
+    eventListeners = [];
+  }
+
+  // ============================================
+  // SERVICE SETUP FUNCTIONS
+  // ============================================
+
+  /**
+   * Initialize Google Analytics 4
+   */
+  function setupGoogleAnalytics() {
+    if (!config.googleAnalyticsV4ID) {
+      log('Google Analytics ID not configured');
+      return;
+    }
+
+    log('Setting up Google Analytics: ' + config.googleAnalyticsV4ID);
+
+    loadScript({
+      src: 'https://www.googletagmanager.com/gtag/js?id=' + config.googleAnalyticsV4ID,
+      defer: true,
+      onload: function() {
+        window.dataLayer = window.dataLayer || [];
+        function gtag() {
+          window.dataLayer.push(arguments);
+        }
+        window.gtag = gtag;
+
+        gtag('js', new Date());
+
+        // Configure GA4
+        gtag('config', config.googleAnalyticsV4ID);
+
+        // Configure Google Ads if set
+        if (config.googleAdsID) {
+          gtag('config', config.googleAdsID);
+        }
+
+        // Configure Call Metrics
+        if (config.googleCallMetricsID) {
+          if (config.googleCallMetricsPhone1) {
+            gtag('config', config.googleCallMetricsID, {
+              'phone_conversion_number': config.googleCallMetricsPhone1
+            });
+          }
+          if (config.googleCallMetricsPhone2) {
+            gtag('config', config.googleCallMetricsID, {
+              'phone_conversion_number': config.googleCallMetricsPhone2
+            });
+          }
+        }
+
+        // Track Lead Conversion
+        if (config.googleLeadConversionID) {
+          gtag('event', 'conversion', {
+            'send_to': config.googleLeadConversionID,
+            'value': config.googleLeadConversionValue,
+            'currency': config.googleLeadConversionCurrency
+          });
+        }
+      }
+    });
+  }
+
+  /**
+   * Initialize Google Tag Manager
+   */
+  function setupGoogleTagManager() {
+    if (!config.googleTagManagerID) return;
+
+    log('Setting up Google Tag Manager: ' + config.googleTagManagerID);
+
+    var gtmId = config.googleTagManagerID;
+
+    // Initialize dataLayer
     window.dataLayer = window.dataLayer || [];
-    function gtag() { dataLayer.push(arguments); }
-    gtag('js', new Date());
-    if (googleAnalyticsV4ID)
-      gtag('config', googleAnalyticsV4ID);
-    if (googleAdsID)
-      gtag('config', googleAdsID);
-    if (googleCallMetricsID && googleCallMetricsPhone1)
-      gtag('config', googleCallMetricsID, {
-        'phone_conversion_number': googleCallMetricsPhone1
-      });
-    if (googleCallMetricsID && googleCallMetricsPhone2)
-      gtag('config', googleCallMetricsID, {
-        'phone_conversion_number': googleCallMetricsPhone2
-      });
-    if (googleLeadConversionID)
-      gtag('event', 'conversion', {
-        'send_to': googleLeadConversionID,
-        'value': googleLeadConversionValue,
-        'currency': googleLeadConversioncurrency
-      });
+    window.dataLayer.push({
+      'gtm.start': new Date().getTime(),
+      event: 'gtm.js'
+    });
+
+    // Load GTM script
+    loadScript({
+      src: 'https://www.googletagmanager.com/gtm.js?id=' + gtmId,
+      appendTo: 'head'
+    });
+
+    // Create noscript iframe fallback
+    var iframe = document.createElement('iframe');
+    iframe.src = 'https://www.googletagmanager.com/ns.html?id=' + gtmId;
+    iframe.height = '0';
+    iframe.width = '0';
+    iframe.style.display = 'none';
+    iframe.style.visibility = 'hidden';
+
+    var noscript = document.createElement('noscript');
+    noscript.appendChild(iframe);
+
+    if (document.body.firstChild) {
+      document.body.insertBefore(noscript, document.body.firstChild);
+    } else {
+      document.body.appendChild(noscript);
+    }
   }
 
-  // Set the source of the script based on the variables above
-  script.src = 'https://www.googletagmanager.com/gtag/js?id=' + googleAnalyticsV4ID;
+  /**
+   * Initialize Facebook Pixel
+   */
+  function setupFacebookPixel() {
+    if (!config.facebookPixelID) return;
 
-  //Set attribute
-  script.defer = true;
+    log('Setting up Facebook Pixel: ' + config.facebookPixelID);
 
-  // Append the script to the body of the document
-  document.getElementsByTagName('body')[0].appendChild(script);
-}
+    var pixelId = config.facebookPixelID;
 
-// Load chat feature late
-function setupNgageChat(ng, a, g, e) {
-  console.log('Setup Ngage with ID ' + ngageChatID);
+    // Initialize fbq
+    if (window.fbq) return;
 
-  var l = document.createElement(g);
-  l.async = 1;
-  l.src = (ng + e);
-  var c = a.getElementsByTagName(g)[0];
-  c.parentNode.insertBefore(l, c);
-}
+    var fbq = window.fbq = function() {
+      fbq.callMethod ?
+        fbq.callMethod.apply(fbq, arguments) :
+        fbq.queue.push(arguments);
+    };
 
-// Load Olark chat late
-function setupOlarkChat(o, l, a, r, k, y) {
-  console.log('Setup Olark with ID ' + oClarkChatID);
+    if (!window._fbq) window._fbq = fbq;
+    fbq.push = fbq;
+    fbq.loaded = true;
+    fbq.version = '2.0';
+    fbq.queue = [];
 
-  r = "script";
-  y = l.createElement(r);
-  r = l.getElementsByTagName(r)[0];
-  y.async = 1;
-  y.src = "//" + a;
-  r.parentNode.insertBefore(y, r);
-  y = o.olark = function () { k.s.push(arguments); k.t.push(+new Date) };
-  y.extend = function (i, j) { y("extend", i, j) };
-  y.identify = function (i) { y("identify", k.i = i) };
-  y.configure = function (i, j) { y("configure", i, j); k.c[i] = j };
-  k = y._ = { s: [], t: [+new Date], c: {}, l: a };
+    loadScript({
+      src: 'https://connect.facebook.net/en_US/fbevents.js',
+      onload: function() {
+        window.fbq('init', pixelId, {}, {
+          'agent': 'wordpress-delayed-js'
+        });
+        window.fbq('track', 'PageView', []);
+      }
+    });
 
-  olark.identify(oClarkChatID);
-}
+    // Noscript fallback
+    createNoscript(
+      '<img height="1" width="1" style="display:none" alt="fbpx" ' +
+      'src="https://www.facebook.com/tr?id=' + pixelId + '&ev=PageView&noscript=1" />',
+      'head'
+    );
+  }
 
-// Load Google Tag Manager late
-function setupGoogleTagManager(w, d, s, l, i) {
-  console.log('Setup Google Tag Manager ' + i);
+  /**
+   * Initialize Bing Conversion Tracking
+   */
+  function setupBingConversion() {
+    if (!config.bingConversionID) return;
 
-  // Head script
-  w[l] = w[l] || [];
-  w[l].push({
-    'gtm.start': new Date().getTime(), event: 'gtm.js'
-  });
-  var f = d.getElementsByTagName(s)[0],
-    j = d.createElement(s),
-    dl = l != 'dataLayer' ? '&l=' + l : '';
-  j.async = true;
-  j.src = 'https://www.googletagmanager.com/gtm.js?id=' + i + dl;
-  f.parentNode.insertBefore(j, f);
+    log('Setting up Bing Conversion: ' + config.bingConversionID);
 
-  // Body script
-  const script = document.createElement('noscript');
-  const iframe = document.createElement('iframe');
+    var tagId = config.bingConversionID;
+    window.uetq = window.uetq || [];
 
-  iframe.src = "https://www.googletagmanager.com/ns.html?id=" + i;
-  iframe.height = 0;
-  iframe.width = 0;
-  iframe.style.display = "none";
-  iframe.style.visibility = "hidden";
+    loadScript({
+      src: '//bat.bing.com/bat.js',
+      onload: function() {
+        var uetConfig = { ti: tagId };
+        uetConfig.q = window.uetq;
+        window.uetq = new UET(uetConfig);
+        window.uetq.push('pageLoad');
+      }
+    });
+  }
 
-  // Move elements to correct locations
-  script.appendChild(iframe);
-  document.getElementsByTagName('body')[0].prepend(script);
-}
+  /**
+   * Initialize Ngage Chat
+   */
+  function setupNgageChat() {
+    if (!config.ngageChatID) return;
 
-// Load Pixel script late
-function setupPixel(f, b, e, v, n, t, s) {
-  console.log('Setup Pixel ' + facebookPixelID);
+    log('Setting up Ngage Chat: ' + config.ngageChatID);
 
-  if (f.fbq) return;
-  n = f.fbq = function () {
-    n.callMethod ?
-      n.callMethod.apply(n, arguments) : n.queue.push(arguments)
-  };
-  if (!f._fbq) f._fbq = n;
-  n.push = n;
-  n.loaded = !0;
-  n.version = '2.0';
-  n.queue = [];
-  t = b.createElement(e);
-  t.async = !0;
-  t.src = v;
-  s = b.getElementsByTagName(e)[0];
-  s.parentNode.insertBefore(t, s)
+    loadScript({
+      src: 'https://messenger.ngageics.com/ilnksrvr.aspx?websiteid=' + config.ngageChatID
+    });
+  }
 
-  fbq('init', facebookPixelID, {}, {
-    "agent": "wordpress-5.7.1-3.0.5"
-  });
+  /**
+   * Initialize Olark Chat
+   */
+  function setupOlarkChat() {
+    if (!config.olarkChatID) return;
 
-  fbq('track', 'PageView', []);
+    log('Setting up Olark Chat: ' + config.olarkChatID);
 
-  const noScript = document.createElement('noscript');
-  noScript.innerHTML += "<img height=\"1\" width=\"1\" style=\"display:none\" alt=\"fbpx\"src=\"https://www.facebook.com/tr?id=" + facebookPixelID + "&ev=PageView&noscript=1\" />";
+    var olarkId = config.olarkChatID;
 
-  // Move elements to correct locations
-  document.getElementsByTagName('head')[0].append(noScript);
-}
+    // Initialize Olark object
+    var olark = window.olark = function() {
+      olark._.s.push(arguments);
+      olark._.t.push(+new Date);
+    };
 
-// Load Bing Conversion script late
-function setupBingConversion(w, d, t, r, u) {
-  console.log('Setup Bing Conversion ' + bingConversionID);
+    olark.extend = function(i, j) { olark('extend', i, j); };
+    olark.identify = function(i) { olark('identify', olark._.i = i); };
+    olark.configure = function(i, j) { olark('configure', i, j); olark._.c[i] = j; };
 
-  var f, n, i;
-  w[u] = w[u] || [],
-    f = function () {
-      var o = { ti: bingConversionID };
-      o.q = w[u],
-        w[u] = new UET(o),
-        w[u].push("pageLoad")
-    },
-    n = d.createElement(t),
-    n.src = r,
-    n.async = 1,
-    n.onload = n.onreadystatechange = function () {
-      var s = this.readyState;
-      s && s !== "loaded" && s !== "complete" || (f(), n.onload = n.onreadystatechange = null)
-    },
-    i = d.getElementsByTagName(t)[0],
-    i.parentNode.insertBefore(n, i)
-}
+    olark._ = {
+      s: [],
+      t: [+new Date],
+      c: {},
+      l: 'static.olark.com/jsclient/loader.js'
+    };
 
-// Load Apex Chat
-function setupApexChat() {
-  console.log('Setup Apex Chat with ID ' + apexLiveChatID);
+    loadScript({
+      src: '//static.olark.com/jsclient/loader.js',
+      onload: function() {
+        window.olark.identify(olarkId);
+      }
+    });
+  }
 
-  const script = document.createElement('script');
-  script.src = '//www.apex.live/scripts/invitation.ashx?company=' + apexLiveChatID;
-  script.async = true;
+  /**
+   * Initialize Apex Chat
+   */
+  function setupApexChat() {
+    if (!config.apexLiveChatID) return;
 
-  // Add script to body
-  document.getElementsByTagName('body')[0].appendChild(script);
-}
+    log('Setting up Apex Chat: ' + config.apexLiveChatID);
 
-// Load Hubspot Chat
-function setupHubspotChat() {
-  console.log('Setup Hubspot Chat with ID ' + hubspotChatID);
-  const script = document.createElement('script');
-  script.src = 'https://js.hs-scripts.com/' + hubspotChatID + '.js';
-  script.async = true;
-  document.getElementsByTagName('body')[0].appendChild(script);
-}
+    loadScript({
+      src: '//www.apex.live/scripts/invitation.ashx?company=' + config.apexLiveChatID
+    });
+  }
 
-// Load Intake chat service late
-function setupIntaker(w, d, s, v, odl) {
-  console.log('Intaker Loaded');
+  /**
+   * Initialize Hubspot Chat
+   */
+  function setupHubspotChat() {
+    if (!config.hubspotChatID) return;
 
-  (w[v] = w[v] || {})['odl'] = odl;
-  var f = d.getElementsByTagName(s)[0],
-    j = d.createElement(s);
-  j.async = true;
-  j.src = 'https://intaker.azureedge.net/widget/chat.min.js';
-  f.parentNode.insertBefore(j, f);
-}
+    log('Setting up Hubspot Chat: ' + config.hubspotChatID);
 
-/**
- * Load Google 
- script late
- * 
- * This function does not work with wordpress google translate plugin
- * This should only be used for custom google translate install. Example on https://www.thorntaxlaw.com/
- * 
- * HTML *
- * <li class="translator"><a href="#" class="translator-button"><i class="fab fa-language"></i></a>
- *    <div id="translator">
- *      <div id="google_translate_element"></div>
- *  </div>
- * </li>
- * 
- * If there is google tracking, the googleAnalyticsID should be filled in, or updated accordingly
- */
-function setupGoogleTranslate() {
-  console.log('Setup Google Translate');
+    loadScript({
+      src: 'https://js.hs-scripts.com/' + config.hubspotChatID + '.js'
+    });
+  }
 
-  // Create script to add to the footer
-  const script = document.createElement('script');
-  script.src = 'https://translate.google.com/translate_a/element.js?cb=googleTranslateElementInit';
-  script.async = true;
+  /**
+   * Initialize Intaker Chat
+   */
+  function setupIntakerChat() {
+    if (!config.intakerChatID) return;
 
-  // Create script for google translate init function to add to the footer
-  const script2 = document.createElement('script');
-  script2.innerHTML = function googleTranslateElementInit() {
-    new google.translate.TranslateElement({
-      pageLanguage: "en",
-      includedLanguages: "cy,de,es,fr,hi,it,nl,no,ru,tr,zh-CN",
-      layout: google.translate.TranslateElement.InlineLayout.SIMPLE,
-      gaTrack: !0,
-      gaId: googleAnalyticsID || '',
-    }, "google_translate_element")
-  };
-  script2.async = true;
+    log('Setting up Intaker Chat: ' + config.intakerChatID);
 
-  // Add google translate script to the footer, followed by the init function
-  document.getElementsByTagName('footer')[0].appendChild(script);
-  document.getElementsByTagName('footer')[0].appendChild(script2);
-}
+    window.Intaker = window.Intaker || {};
+    window.Intaker.odl = config.intakerChatID;
 
-/** 
- * Load Clickease late
- * 
- * Does not require any global variables to be set. 
- * Just uncomment the function call to use
- *  */
-function setupClickease() {
-  console.log('Setup Clickease');
+    loadScript({
+      src: 'https://intaker.azureedge.net/widget/chat.min.js'
+    });
+  }
 
-  // Create the script element
-  var scriptElement = document.createElement("script");
-  scriptElement.async = true;
-  scriptElement.type = "text/javascript";
+  /**
+   * Initialize Juvo Leads
+   */
+  function setupJuvoLeads() {
+    if (!config.juvoLeadsChatID) return;
 
-  // Set the source of the script element
-  var target = "https://www.clickcease.com/monitor/stat.js";
-  scriptElement.src = target;
+    log('Setting up Juvo Leads: ' + config.juvoLeadsChatID);
 
-  // Append the script element to the head of the document
-  var headElement = document.head || document.getElementsByTagName("head")[0];
-  headElement.appendChild(scriptElement);
+    // Cache busting parameter
+    var cacheBuster = Math.floor(Math.random() * 9999999999);
 
-  // Create the noscript element
-  var noscriptElement = document.createElement("noscript");
+    loadScript({
+      src: 'https://cdn.juvoleads.com/tag/' + config.juvoLeadsChatID + '.js?v=' + cacheBuster,
+      appendTo: 'footer'
+    });
+  }
 
-  // Create the anchor element and set its href attribute
-  var anchorElement = document.createElement("a");
-  anchorElement.href = "https://www.clickcease.com";
+  /**
+   * Initialize ClickCease
+   */
+  function setupClickCease() {
+    if (!config.useClickCease) return;
 
-  // Create the image element, set its src and alt attributes, and append it to the anchor element
-  var imageElement = document.createElement("img");
-  imageElement.src = "https://monitor.clickcease.com/stats/stats.aspx";
-  imageElement.alt = "Click Fraud Protection";
-  anchorElement.appendChild(imageElement);
+    log('Setting up ClickCease');
 
-  // Append the anchor element to the noscript element
-  noscriptElement.appendChild(anchorElement);
+    loadScript({
+      src: 'https://www.clickcease.com/monitor/stat.js',
+      appendTo: 'head'
+    });
 
-  // Append the noscript element to the body of the document
-  document.body.appendChild(noscriptElement);
-}
+    // Noscript fallback
+    createNoscript(
+      '<a href="https://www.clickcease.com">' +
+      '<img src="https://monitor.clickcease.com/stats/stats.aspx" alt="Click Fraud Protection" />' +
+      '</a>'
+    );
+  }
 
-// Load Juvo Leads Tag script late
-function setupJuvoLeads() {
-  console.log('Setup Juvoleads');
+  /**
+   * Initialize Google Translate
+   * Note: This is for custom implementations, not the WordPress plugin
+   */
+  function setupGoogleTranslate() {
+    if (!config.useGoogleTranslate) return;
 
-  const script = document.createElement('script');
-  script.src = 'https://cdn.juvoleads.com/tag/' + juvoLeadsChatID + '.js?v=' + Math.floor(Math.random() * 9999999999);
-  script.async = true;
+    log('Setting up Google Translate');
 
-  // Add script to body
-  document.getElementsByTagName('footer')[0].appendChild(script);
-}
+    // Define the init function globally
+    window.googleTranslateElementInit = function() {
+      new google.translate.TranslateElement({
+        pageLanguage: 'en',
+        includedLanguages: 'cy,de,es,fr,hi,it,nl,no,ru,tr,zh-CN',
+        layout: google.translate.TranslateElement.InlineLayout.SIMPLE,
+        gaTrack: config.googleAnalyticsV4ID ? true : false,
+        gaId: config.googleAnalyticsV4ID || ''
+      }, 'google_translate_element');
+    };
+
+    loadScript({
+      src: 'https://translate.google.com/translate_a/element.js?cb=googleTranslateElementInit',
+      appendTo: 'footer'
+    });
+  }
+
+  // ============================================
+  // MAIN INITIALIZATION
+  // ============================================
+
+  /**
+   * Main function to load all delayed scripts
+   */
+  function initDelayedScripts() {
+    // Prevent multiple initializations
+    if (initialized) return;
+    initialized = true;
+
+    // Clear the timeout if it's still pending
+    if (delayedTimeout) {
+      clearTimeout(delayedTimeout);
+      delayedTimeout = null;
+    }
+
+    // Remove event listeners to free memory
+    removeEventListeners();
+
+    log('Initializing delayed scripts...');
+
+    // Analytics & Tracking
+    setupGoogleAnalytics();
+    setupGoogleTagManager();
+    setupFacebookPixel();
+    setupBingConversion();
+
+    // Chat Services
+    setupNgageChat();
+    setupOlarkChat();
+    setupApexChat();
+    setupHubspotChat();
+    setupIntakerChat();
+    setupJuvoLeads();
+
+    // Conditional Services
+    setupClickCease();
+    setupGoogleTranslate();
+
+    log('Delayed scripts initialization complete');
+  }
+
+  /**
+   * Register event listener and track it for cleanup
+   */
+  function addTrackedEventListener(eventName) {
+    var handler = function() {
+      initDelayedScripts();
+    };
+
+    document.addEventListener(eventName, handler, { passive: true });
+    eventListeners.push({ event: eventName, handler: handler });
+  }
+
+  /**
+   * Bootstrap the delayed loading
+   */
+  function bootstrap() {
+    // Events that trigger script loading
+    var triggerEvents = [
+      'scroll',
+      'mousemove',
+      'touchstart',
+      'keydown',    // For keyboard navigation
+      'click'       // For immediate interactions
+    ];
+
+    // Register event listeners
+    for (var i = 0; i < triggerEvents.length; i++) {
+      addTrackedEventListener(triggerEvents[i]);
+    }
+
+    // Fallback: load after timeout using requestIdleCallback if available
+    if ('requestIdleCallback' in window) {
+      window.requestIdleCallback(function() {
+        delayedTimeout = setTimeout(initDelayedScripts, config.delayTimeout);
+      }, { timeout: 1000 });
+    } else {
+      delayedTimeout = setTimeout(initDelayedScripts, config.delayTimeout);
+    }
+
+    log('Delayed.js bootstrapped, waiting for user interaction or ' + config.delayTimeout + 'ms timeout');
+  }
+
+  // ============================================
+  // INITIALIZATION
+  // ============================================
+
+  // Start when DOM is ready
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', bootstrap);
+  } else {
+    // DOM already loaded
+    bootstrap();
+  }
+
+  // Expose config for external modification if needed
+  window.delayedJsConfig = config;
+
+})();
