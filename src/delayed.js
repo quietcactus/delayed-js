@@ -33,8 +33,17 @@ const ngageChatID = ""; // Format: 0-000-000-000-000-000-000-000 (Ngage live cha
 const oClarkChatID = ""; // Format: 0000-000-00-0000 (Olark live chat)
 const apexLiveChatID = ""; // Format: String, as in "companyname" (Apex live chat)
 const intakerChatID = ""; // Format: sitename (Intaker live chat)
-const juvoLeadsChatID = ""; // Format: 0000000000 (Juvo Leads live Chat)  
+const juvoLeadsChatID = ""; // Format: 0000000000 (Juvo Leads live Chat)
 const hubspotChatID = ""; // Format: 00000000 (Hubspot live chat)
+
+// EXTENSION MODULES
+// Enable/disable optional extension modules by setting to true/false
+// Extensions are loaded from the ./extensions/ folder
+const extensions = {
+  // advancedTracking: false,  // Example: Advanced analytics tracking features
+  // customChat: false,         // Example: Custom chat integrations
+  // ecommerce: false,          // Example: E-commerce tracking features
+}
 
 // JavaScript code to execute after the DOM is ready
 document.addEventListener("DOMContentLoaded", function (event) {
@@ -69,6 +78,9 @@ function delayedScripts(event) {
 
   if (useCickCease) setupClickease();
   if (useGoogleTranslate) setupGoogleTranslate();
+
+  // Load enabled extensions
+  loadExtensions();
 
   // Set variable to true to prevent delayedScripts from rerunning
   delayedScriptsInitialized = true;
@@ -365,4 +377,60 @@ function setupJuvoLeads() {
 
   // Add script to body
   document.getElementsByTagName('footer')[0].appendChild(script);
+}
+
+/**
+ * Load Extension Modules
+ *
+ * Dynamically loads extension scripts based on the extensions configuration object.
+ * Each extension should export an initialization function that will be called after the script loads.
+ *
+ * Extension file naming convention:
+ * - Config key: "advancedTracking" -> File: "./extensions/advancedTracking.js"
+ * - Config key: "customChat" -> File: "./extensions/customChat.js"
+ *
+ * Each extension file should define a global init function:
+ * function initAdvancedTracking() { ... }
+ * function initCustomChat() { ... }
+ */
+function loadExtensions() {
+  // Check if extensions object exists and has enabled extensions
+  if (!extensions || typeof extensions !== 'object') {
+    return;
+  }
+
+  // Iterate through extension config
+  Object.keys(extensions).forEach((extensionName) => {
+    // Only load if extension is enabled
+    if (extensions[extensionName] === true) {
+      console.log('Loading extension: ' + extensionName);
+
+      // Create script element
+      const script = document.createElement('script');
+      script.src = './extensions/' + extensionName + '.js';
+      script.async = true;
+
+      // Call initialization function after script loads
+      script.onload = function() {
+        // Construct the init function name (e.g., "initAdvancedTracking")
+        const initFunctionName = 'init' + extensionName.charAt(0).toUpperCase() + extensionName.slice(1);
+
+        // Call the init function if it exists
+        if (typeof window[initFunctionName] === 'function') {
+          console.log('Initializing extension: ' + extensionName);
+          window[initFunctionName]();
+        } else {
+          console.warn('Extension loaded but init function not found: ' + initFunctionName);
+        }
+      };
+
+      // Handle load errors
+      script.onerror = function() {
+        console.error('Failed to load extension: ' + extensionName);
+      };
+
+      // Append script to document
+      document.body.appendChild(script);
+    }
+  });
 }
