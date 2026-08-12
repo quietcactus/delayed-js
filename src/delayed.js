@@ -1,6 +1,6 @@
 /**
  * Loads scripts/features in a deferred manner
- * @version 1.8.0
+ * @version 1.9.0
  */
 
 // Global variable to prevent delayedScripts from running more than once
@@ -23,6 +23,7 @@ const googleLeadConversionValue = 1.0; // Decimal value, 1.0 set by default. Upd
 const googleLeadConversioncurrency = 'USD'; // Currency, USD set by default. Update as needed
 const facebookPixelID = ""; // Format: 000000000000000 (Facebook pixel tracking)
 const bingConversionID = ""; // Format: 000000000 (Bing conversion tracking)
+const linkedInPartnerID = ""; // Format: 000000000 (LinkedIn Insight Tag partner ID)
 
 // CONDITIONAL SERVICES
 const useCickCease = false; // True or false to enable/disable (ClickCease)
@@ -59,6 +60,7 @@ function delayedScripts(event) {
   if (googleTagManagerID) setupGoogleTagManager(window, document, 'script', 'dataLayer', googleTagManagerID);
   if (facebookPixelID) setupPixel(window, document, 'script', 'https://connect.facebook.net/en_US/fbevents.js');
   if (bingConversionID) setupBingConversion(window, document, "script", "//bat.bing.com/bat.js", "uetq");
+  if (linkedInPartnerID) setupLinkedIn();
 
   if (ngageChatID) setupNgageChat("https://messenger.ngageics.com/ilnksrvr.aspx?websiteid=", document, "script", ngageChatID);
   if (oClarkChatID) setupOlarkChat(window, document, "static.olark.com/jsclient/loader.js");
@@ -236,6 +238,32 @@ function setupBingConversion(w, d, t, r, u) {
     },
     i = d.getElementsByTagName(t)[0],
     i.parentNode.insertBefore(n, i)
+}
+
+// Load LinkedIn Insight Tag late
+function setupLinkedIn() {
+  console.log('Setup LinkedIn Insight Tag with ID ' + linkedInPartnerID);
+
+  window._linkedin_partner_id = linkedInPartnerID;
+  window._linkedin_data_partner_ids = window._linkedin_data_partner_ids || [];
+  window._linkedin_data_partner_ids.push(window._linkedin_partner_id);
+
+  var s = document.getElementsByTagName('script')[0];
+  var b = document.createElement('script');
+  b.type = 'text/javascript';
+  b.async = true;
+  b.src = 'https://snap.licdn.com/li.lms-analytics/insight.min.js';
+  s.parentNode.insertBefore(b, s);
+
+  const noScript = document.createElement('noscript');
+  const img = document.createElement('img');
+  img.height = 1;
+  img.width = 1;
+  img.style.display = 'none';
+  img.alt = '';
+  img.src = 'https://px.ads.linkedin.com/collect/?pid=' + linkedInPartnerID + '&fmt=gif';
+  noScript.appendChild(img);
+  document.getElementsByTagName('body')[0].appendChild(noScript);
 }
 
 // Load Apex Chat
