@@ -79,15 +79,18 @@ Near the top of the file there the IDs for the different services are stored in 
 // DATA AND ANALYTICS SERVICES
 const googleAnalyticsV4ID = ""; // Format: 'G-0000000000 (Google Analytics 4 – gtag.js)
 const googleTagManagerID = ""; // Format: GTM-0000000 (Google Tag Manager)
-const googleAdsID = ""; // Format AW-000000000 (Google Ads)
-const googleCallMetricsID = ""; // Format AW-000000000/00000000000000000000 (Google Call Metrics ID, associated with Google Ads)
+const googleAdsID = ""; // Format AW-000000000 (Google Ads). Multiple: "AW-000000000, AW-111111111" or ["AW-000000000", "AW-111111111"]
+const googleCallMetricsID = ""; // Format AW-000000000/00000000000000000000 (Google Call Metrics ID, associated with Google Ads). Accepts multiple, comma separated or as an array
 const googleCallMetricsPhone1 = ""; // Format 1-000-000-0000 (Google Call Metrics Phone Number)
 const googleCallMetricsPhone2 = "";// Format 1-000-000-0000 (Google Call Metrics Phone Number)
-const googleLeadConversionID = ""; // Format AW-000000000/00000000000000000000 (Google Lead Conversion ID, associated with Google Ads)
+const googleLeadConversionID = ""; // Format AW-000000000/00000000000000000000 (Google Lead Conversion ID, associated with Google Ads). Accepts multiple, comma separated or as an array. Note: fires on every page load, see README
 const googleLeadConversionValue = 1.0; // Decimal value, 1.0 set by default. Update as needed
 const googleLeadConversioncurrency = 'USD'; // Currency, USD set by default. Update as needed
 const facebookPixelID = ""; // Format: 000000000000000 (Facebook pixel tracking)
 const bingConversionID = ""; // Format: 000000000 (Bing conversion tracking)
+const linkedInPartnerID = ""; // Format: 000000000 (LinkedIn Insight Tag partner ID)
+const tiktokPixelID = ""; // Format: 00000000000000000000 (TikTok Pixel ID, also called the sdkid)
+const redditPixelID = ""; // Format: a2_000000000000 (Reddit Pixel ID)
 
 // CONDITIONAL SERVICES
 const useCickCease = false; // True or false to enable/disable (ClickCease)
@@ -107,7 +110,31 @@ const useCickCease = true;        // turn on ClickCease
 const useGoogleTranslate = true;  // turn on Translate
 ```
 For chats: fill the matching ID and the script will load it automatically.
-For trackers (GA4, GTM, Pixel, Bing): fill the ID and it loads automatically.
+For trackers (GA4, GTM, Pixel, Bing, LinkedIn, TikTok, Reddit): fill the ID and it loads automatically.
+
+### Multiple Google Ads IDs
+
+`googleAdsID`, `googleCallMetricsID`, and `googleLeadConversionID` each accept more than one ID. Use either a comma separated string or an array — both work the same way:
+
+```
+// Comma separated
+const googleAdsID = "AW-111111111, AW-222222222";
+
+// Or as an array
+const googleAdsID = ["AW-111111111", "AW-222222222"];
+```
+
+Spacing does not matter, each value is trimmed and empty values are dropped. Every ID gets its own `gtag('config', ...)` call, and only one gtag loader is requested for all of them.
+
+To confirm all of the IDs were picked up, check the console after interacting with the page. The log prints the full resolved list:
+
+```
+Setup gtag with IDs G-ABC1234567, AW-111111111, AW-222222222
+```
+
+If an ID is missing from that line, it was empty or malformed in the const.
+
+**Note:** gtag now loads whenever *either* `googleAnalyticsV4ID` or `googleAdsID` is filled in. Previously it was skipped entirely when `googleAnalyticsV4ID` was empty, so sites running Google Ads without GA4 were not firing anything. Those sites will begin reporting conversions once this version is deployed — annotate the Google Ads account on the deploy date.
 
 ## Comment out original scripts
 
@@ -119,6 +146,32 @@ Since Prove Source is very rarely used. It was removed from delayed.js and added
 1. Add the Prove Source constants go near the top of the file with the rest of the constants.
 2. Add the conditional statements inside of the `delayedScripts()` function.
 3. Add the setup function at the end of the file.
+
+## Trade Desk
+
+The Trade Desk is a programmatic DSP that is only bought through an agency or trading desk, so it is rarely used on these sites. It lives in `extensions/tradedesk.js` rather than the main file. Add the code to delayed.js as needed.
+1. Add the Trade Desk constants near the top of the file with the rest of the constants.
+2. Add the conditional statement inside of the `delayedScripts()` function.
+3. Add the setup function at the end of the file.
+
+`tradeDeskPixelIDs` is an array because the vendor tag itself takes a list. Even with a single pixel it stays in brackets:
+
+```
+const tradeDeskAdvertiserID = "ah37n9r";
+const tradeDeskPixelIDs = ["fkwa03p"];
+```
+
+The conversion events queue and both the `init` and `event` pushes are set up **before** `up_loader.3.0.0.js` is injected. The loader drains that queue as soon as it executes, so do not reorder those lines or the pixel silently does nothing.
+
+## Known Behavior / Future Work
+
+### Lead conversions fire on every page load
+
+`googleLeadConversionID` sends a gtag `conversion` event every time `delayedScripts()` runs — that is, on **every page view**, not on an actual form submission. This is long-standing behavior and is **intentionally unchanged** as of v1.10.0.
+
+Reported conversion counts on any site using this const should be read as page views, not leads.
+
+**Future work:** move the `gtag('event', 'conversion', ...)` call out of `setupGoogleAnalytics()` and into the contact form's success handler (`contact.js`), so it fires once per submitted lead. This will change reported numbers — annotate the Google Ads account on the day it ships.
 
 ## How to test if implementation was correct
 
@@ -136,6 +189,8 @@ Since Prove Source is very rarely used. It was removed from delayed.js and added
 - **Checking Bing** [**UET Tag Helper (by Microsoft Advertising)**](https://chrome.google.com/webstore/detail/uet-tag-helper-by-microso/naijndjklgmffmpembnkfbcjbognokbf)
 - **Checking Pixel** **[Facebook Pixel Helper](https://chrome.google.com/webstore/detail/facebook-pixel-helper/fdgfkebogiimcoedlicjlajpkdmockpc?hl=en)**
 - **Checking LinkedIn** **[Insight Tag Checker](https://chrome.google.com/webstore/detail/insight-tag-checker/feeednoflloccfhgoiiohjammanphoef)**
+- **Checking TikTok** **[TikTok Pixel Helper](https://chromewebstore.google.com/detail/tiktok-pixel-helper/aelgobmabdmlfmiblddjfnjodalhidnn)**
+- **Checking Reddit** **[Reddit Pixel Helper](https://chromewebstore.google.com/detail/reddit-pixel-helper/nmpldhkhcgjhpjfmiglldjcbdgocmefk)**
 
 ### Console log
 
@@ -143,5 +198,5 @@ The `console.log()` in the functions should also appear in the console of dev to
 
 ## Common Errors
 - Check to make sure that when enqueuing the script, the [dependency parameter](https://developer.wordpress.org/reference/functions/wp_enqueue_script/) is empty: `array()` NOT `array('jquery')`
-- Duplicate tags: If GTM is enabled here, remove any hardcoded GTM elsewhere (or vice versa).
+- Duplicate tags: If GTM is enabled here, remove any hardcoded GTM elsewhere (or vice versa). Same goes for the TikTok, Reddit, LinkedIn, and Trade Desk tags — check the header, the footer, **and** GTM, since these are commonly pasted into all three. Leaving a duplicate double counts page views and conversions, which distorts paid campaign bidding.
 - WordPress caching/optimization plugins and WordPress Engine: Clear cache if the website has any caching plugins. Clear wordpress engine cache. 

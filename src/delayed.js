@@ -1,6 +1,6 @@
 /**
  * Loads scripts/features in a deferred manner
- * @version 1.9.0
+ * @version 1.10.0
  */
 
 // Global variable to prevent delayedScripts from running more than once
@@ -14,16 +14,18 @@ let delayedScriptsInitialized = false;
 // DATA AND ANALYTICS SERVICES
 const googleAnalyticsV4ID = ""; // Format: 'G-0000000000 (Google Analytics 4 – gtag.js)
 const googleTagManagerID = ""; // Format: GTM-0000000 (Google Tag Manager)
-const googleAdsID = ""; // Format AW-000000000 (Google Ads)
-const googleCallMetricsID = ""; // Format AW-000000000/00000000000000000000 (Google Call Metrics ID, associated with Google Ads)
+const googleAdsID = ""; // Format AW-000000000 (Google Ads). Multiple: "AW-000000000, AW-111111111" or ["AW-000000000", "AW-111111111"]
+const googleCallMetricsID = ""; // Format AW-000000000/00000000000000000000 (Google Call Metrics ID, associated with Google Ads). Accepts multiple, comma separated or as an array
 const googleCallMetricsPhone1 = ""; // Format 1-000-000-0000 (Google Call Metrics Phone Number)
 const googleCallMetricsPhone2 = "";// Format 1-000-000-0000 (Google Call Metrics Phone Number)
-const googleLeadConversionID = ""; // Format AW-000000000/00000000000000000000 (Google Lead Conversion ID, associated with Google Ads)
+const googleLeadConversionID = ""; // Format AW-000000000/00000000000000000000 (Google Lead Conversion ID, associated with Google Ads). Accepts multiple, comma separated or as an array. Note: fires on every page load, see README
 const googleLeadConversionValue = 1.0; // Decimal value, 1.0 set by default. Update as needed
 const googleLeadConversioncurrency = 'USD'; // Currency, USD set by default. Update as needed
 const facebookPixelID = ""; // Format: 000000000000000 (Facebook pixel tracking)
 const bingConversionID = ""; // Format: 000000000 (Bing conversion tracking)
 const linkedInPartnerID = ""; // Format: 000000000 (LinkedIn Insight Tag partner ID)
+const tiktokPixelID = ""; // Format: 00000000000000000000 (TikTok Pixel ID, also called the sdkid)
+const redditPixelID = ""; // Format: a2_000000000000 (Reddit Pixel ID)
 
 // CONDITIONAL SERVICES
 const useCickCease = false; // True or false to enable/disable (ClickCease)
@@ -36,6 +38,33 @@ const apexLiveChatID = ""; // Format: String, as in "companyname" (Apex live cha
 const intakerChatID = ""; // Format: sitename (Intaker live chat)
 const juvoLeadsChatID = ""; // Format: 0000000000 (Juvo Leads live Chat)  
 const hubspotChatID = ""; // Format: 00000000 (Hubspot live chat)
+
+/**
+ * Normalizes a single ID, a comma separated list of IDs, or an array of IDs
+ * into a trimmed array with empty values removed
+ */
+function toIDList(value) {
+  if (!value) return [];
+
+  const list = Array.isArray(value) ? value : String(value).split(',');
+
+  return list.map(id => String(id).trim()).filter(Boolean);
+}
+
+/**
+ * Inserts a script before the first script on the page, falling back to
+ * appending to the body when no script node is available
+ */
+function insertScript(script) {
+  const firstScript = document.getElementsByTagName('script')[0];
+
+  if (firstScript && firstScript.parentNode) {
+    firstScript.parentNode.insertBefore(script, firstScript);
+    return;
+  }
+
+  document.getElementsByTagName('body')[0].appendChild(script);
+}
 
 // JavaScript code to execute after the DOM is ready
 document.addEventListener("DOMContentLoaded", function (event) {
@@ -61,6 +90,8 @@ function delayedScripts(event) {
   if (facebookPixelID) setupPixel(window, document, 'script', 'https://connect.facebook.net/en_US/fbevents.js');
   if (bingConversionID) setupBingConversion(window, document, "script", "//bat.bing.com/bat.js", "uetq");
   if (linkedInPartnerID) setupLinkedIn();
+  if (tiktokPixelID) setupTikTok(window, document, 'ttq');
+  if (redditPixelID) setupRedditPixel(window, document);
 
   if (ngageChatID) setupNgageChat("https://messenger.ngageics.com/ilnksrvr.aspx?websiteid=", document, "script", ngageChatID);
   if (oClarkChatID) setupOlarkChat(window, document, "static.olark.com/jsclient/loader.js");
@@ -76,15 +107,18 @@ function delayedScripts(event) {
   delayedScriptsInitialized = true;
 }
 
-// Initializes Google Analytics
+// Initializes Google Analytics and every Google Ads account on the site
 function setupGoogleAnalytics() {
-  // Return if googleAnalyticsV4ID is not set
-  if (!googleAnalyticsV4ID) {
+  // Every ID that needs a gtag config call, in order
+  const configIDs = toIDList(googleAnalyticsV4ID).concat(toIDList(googleAdsID));
+
+  // Return if neither an analytics nor an ads ID is set
+  if (!configIDs.length) {
     console.log('Analytics variable is not set!');
     return;
   }
 
-  console.log('Setup analytics with ID ' + googleAnalyticsV4ID);
+  console.log('Setup gtag with IDs ' + configIDs.join(', '));
 
   // Create the script
   const script = document.createElement('script');
@@ -93,28 +127,28 @@ function setupGoogleAnalytics() {
     window.dataLayer = window.dataLayer || [];
     function gtag() { dataLayer.push(arguments); }
     gtag('js', new Date());
-    if (googleAnalyticsV4ID)
-      gtag('config', googleAnalyticsV4ID);
-    if (googleAdsID)
-      gtag('config', googleAdsID);
-    if (googleCallMetricsID && googleCallMetricsPhone1)
-      gtag('config', googleCallMetricsID, {
-        'phone_conversion_number': googleCallMetricsPhone1
+
+    configIDs.forEach(id => gtag('config', id));
+
+    toIDList(googleCallMetricsID).forEach(id => {
+      [googleCallMetricsPhone1, googleCallMetricsPhone2].filter(Boolean).forEach(phone => {
+        gtag('config', id, {
+          'phone_conversion_number': phone
+        });
       });
-    if (googleCallMetricsID && googleCallMetricsPhone2)
-      gtag('config', googleCallMetricsID, {
-        'phone_conversion_number': googleCallMetricsPhone2
-      });
-    if (googleLeadConversionID)
+    });
+
+    toIDList(googleLeadConversionID).forEach(id => {
       gtag('event', 'conversion', {
-        'send_to': googleLeadConversionID,
+        'send_to': id,
         'value': googleLeadConversionValue,
         'currency': googleLeadConversioncurrency
       });
+    });
   }
 
-  // Set the source of the script based on the variables above
-  script.src = 'https://www.googletagmanager.com/gtag/js?id=' + googleAnalyticsV4ID;
+  // A single loader is enough, every ID above is configured through it
+  script.src = 'https://www.googletagmanager.com/gtag/js?id=' + configIDs[0];
 
   //Set attribute
   script.defer = true;
@@ -381,6 +415,61 @@ function setupClickease() {
 
   // Append the noscript element to the body of the document
   document.body.appendChild(noscriptElement);
+}
+
+// Load TikTok Pixel late
+function setupTikTok(w, d, t) {
+  console.log('Setup TikTok Pixel with ID ' + tiktokPixelID);
+
+  w.TiktokAnalyticsObject = t;
+  var ttq = w[t] = w[t] || [];
+  ttq.methods = ["page", "track", "identify", "instances", "debug", "on", "off", "once", "ready", "alias", "group", "enableCookie", "disableCookie", "holdConsent", "revokeConsent", "grantConsent"];
+  ttq.setAndDefer = function (t, e) {
+    t[e] = function () {
+      t.push([e].concat(Array.prototype.slice.call(arguments, 0)))
+    }
+  };
+  for (var i = 0; i < ttq.methods.length; i++) ttq.setAndDefer(ttq, ttq.methods[i]);
+  ttq.instance = function (t) {
+    var e = ttq._i[t] || [];
+    for (var n = 0; n < ttq.methods.length; n++) ttq.setAndDefer(e, ttq.methods[n]);
+    return e
+  };
+  ttq.load = function (e, n) {
+    var r = "https://analytics.tiktok.com/i18n/pixel/events.js";
+    ttq._i = ttq._i || {}, ttq._i[e] = [], ttq._i[e]._u = r;
+    ttq._t = ttq._t || {}, ttq._t[e] = +new Date;
+    ttq._o = ttq._o || {}, ttq._o[e] = n || {};
+
+    var script = d.createElement("script");
+    script.type = "text/javascript";
+    script.async = !0;
+    script.src = r + "?sdkid=" + e + "&lib=" + t;
+    insertScript(script);
+  };
+
+  ttq.load(tiktokPixelID);
+  ttq.page();
+}
+
+// Load Reddit Pixel late
+function setupRedditPixel(w, d) {
+  console.log('Setup Reddit Pixel with ID ' + redditPixelID);
+
+  if (!w.rdt) {
+    var p = w.rdt = function () {
+      p.sendEvent ? p.sendEvent.apply(p, arguments) : p.callQueue.push(arguments)
+    };
+    p.callQueue = [];
+
+    var script = d.createElement("script");
+    script.src = "https://www.redditstatic.com/ads/pixel.js?pixel_id=" + redditPixelID;
+    script.async = !0;
+    insertScript(script);
+  }
+
+  rdt('init', redditPixelID);
+  rdt('track', 'PageVisit');
 }
 
 // Load Juvo Leads Tag script late
