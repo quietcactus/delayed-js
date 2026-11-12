@@ -163,6 +163,32 @@ const tradeDeskPixelIDs = ["fkwa03p"];
 
 The conversion events queue and both the `init` and `event` pushes are set up **before** `up_loader.3.0.0.js` is injected. The loader drains that queue as soon as it executes, so do not reorder those lines or the pixel silently does nothing.
 
+## reCAPTCHA (Gravity Forms)
+
+Delays Google reCAPTCHA v2 (invisible) for Gravity Forms CAPTCHA fields. It lives in `extensions/recaptcha.js` because it **does not work without a `functions.php` change**. Only use it on sites with a Gravity Forms CAPTCHA field.
+
+reCAPTCHA loads when `delayedScripts()` runs, or right away if the visitor focuses or clicks inside a `.gform_wrapper`, so the widget is ready before they submit. It only loads on pages that have a `.ginput_recaptcha` field.
+
+1. Add the `recaptchaInitialized` variable near the top of the file, next to `delayedScriptsInitialized`.
+2. Add the `focusin`/`pointerdown` listener inside the `DOMContentLoaded` listener.
+3. Add the `setupRecaptcha();` call inside of the `delayedScripts()` function.
+4. Add the setup function at the end of the file.
+5. **Required:** stop Gravity Forms from loading reCAPTCHA itself. Add this to `functions.php`, or add it to an existing `script_loader_tag` filter such as `ps_defer_scripts`:
+
+```
+// Gravity Forms reCAPTCHA is loaded by delayed.js instead
+add_filter('script_loader_tag', function ($tag, $handle) {
+  if ('gform_recaptcha' === $handle) {
+    return '';
+  }
+  return $tag;
+}, 10, 2);
+```
+
+Without step 5, Gravity Forms still loads reCAPTCHA on page load, which removes the speed benefit and loads the API twice.
+
+To test, open a page with a form, interact with the form, and check the console or Network tab. `recaptcha/api.js` should load **once**, and the badge should render. Submit a test entry to confirm the form still validates.
+
 ## Known Behavior / Future Work
 
 ### Lead conversions fire on every page load
